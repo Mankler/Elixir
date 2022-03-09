@@ -2,7 +2,7 @@
 
 (require typed/rackunit)
 
-;; ===== Defintions =====
+;; ===== DEFINITIONS =====
 
 ;; -- ExprC --
 (define-type ExprC (U errorC voidC numC idC strC boolC))
@@ -22,6 +22,9 @@
 
 ;; -- Environments & Modules --
 (define-type-alias Environment (Listof Module)) ;; Environment
-(define-type-alias Module (Listof Binding)) ;; Module
+(struct Module ([id : Symbol] [b : (Listof Binding)])) ;; Module
 (struct Binding ([id : Symbol] [p : Boolean] [v : Value])) ;; Binding (id, private?, value)
+
+
+;; ===== TOP-ENV =====
 
