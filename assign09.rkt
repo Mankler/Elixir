@@ -12,11 +12,16 @@
 (struct idC ([i : Symbol]) #:transparent) ;; ID
 (struct strC ([s : String]) #:transparent) ;; String
 (struct boolC ([b : Boolean]) #:transparent) ;; Boolean
-(struct appC ([name : Symbol] [args : (Listof ExprC)])) ;; Function call
-(struct defC ([name : Symbol] [args : (Listof Symbol)] [body : ExprC])) ;; Function definition
-;;(struct defPC)
+(struct appC ([id : Symbol] [args : (Listof ExprC)])) ;; Function call
+(struct defC ([id : Symbol] [args : (Listof Symbol)] [body : ExprC])) ;; Function definition
 
 ;; -- Value --
-(define-type Value (U errV Number Real Boolean Symbol String primOp))
+(define-type Value (U errV Number Real Boolean Symbol String defC primOp))
 (struct errV ([id : Real]) #:transparent) ;; For inducing errors
 (struct primOp ([op : (-> (Listof Any) Value)])) ;; PrimOp
+
+;; -- Environments & Modules --
+(define-type-alias Environment (Listof Module)) ;; Environment
+(define-type-alias Module (Listof Binding)) ;; Module
+(struct Binding ([id : Symbol] [p : Boolean] [v : Value])) ;; Binding (id, private?, value)
+
