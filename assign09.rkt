@@ -6,25 +6,25 @@
 ;; ===== DEFINITIONS =====
 
 ;; -- ExprC --
-(define-type ExprC (U errorC voidC numC idC strC boolC))
+(define-type ExprC (U errorC numC idC strC boolC))
 (struct errorC ([id : Real]) #:transparent) ;; For inducing errors
-(struct voidC ()) ;; Void
 (struct numC ([n : Real]) #:transparent) ;; Number
 (struct idC ([i : Symbol]) #:transparent) ;; ID
 (struct strC ([s : String]) #:transparent) ;; String
 (struct boolC ([b : Boolean]) #:transparent) ;; Boolean
 (struct appC ([id : Symbol] [args : (Listof ExprC)])) ;; Function call
-(struct defC ([id : Symbol] [args : (Listof Symbol)] [body : ExprC])) ;; Function definition
+(struct defC ([id : Symbol] [args : (Listof Symbol)] [body : (Listof ExprC)])) ;; Function definition
+(struct defModC ([id : Symbol] [exps : (Listof ExprC)])) ;; Define Module
 
 ;; -- Value --
-(define-type Value (U errV Number Real Boolean Symbol String defC primOp Void))
+(define-type Value (U errV Number Real Boolean Symbol String defC primOp Void (Listof Value)))
 (struct errV ([id : Real]) #:transparent) ;; For inducing errors
 (struct primOp ([op : (-> (Listof Any) Value)])) ;; PrimOp
 
 ;; -- Environments & Modules --
 (define-type-alias Environment (Listof Module)) ;; Environment
-(struct Module ([id : Symbol] [b : (Listof Binding)])) ;; Module
-(struct Binding ([id : Symbol] [p : Boolean] [v : Value])) ;; Binding (id, private?, value)
+(struct Module ([id : Symbol] [b : (Listof Binding)]) #:transparent) ;; Module
+(struct Binding ([id : Symbol] [p : Boolean] [v : Value]) #:transparent) ;; Binding (id, private?, value)
 
 
 ;; ===== BUILT-IN FUNCTIONS =====
@@ -108,9 +108,33 @@
 ;; Top environment containing in-built modules
 (define top-env (list PrimOp-mod IO-mod))
 
-;; ===== HELPER FUNCTIONS =====
 
-;; -- serach-env --
+;; ===== INTERP =====
+
+;; -- loop-interp --
+;; loops through interp over a given list of exprC
+;;(define (loop-interp [eS : (Listof ExprC)] [env : Environment] [curMod : Symbol]) : (Listof Value
+  ;;)
+
+;; -- interp --
+;; returns a value after interpreting an expression in an environment
+(define (interp [e : ExprC] [env : Environment] [curMod : Symbol]) : Value
+  (match e
+    [(numC n) n]
+    [(strC s) s]
+    [(boolC b) b]
+    [(idC i) (if (id-exists? (mod-id-concat curMod i) env)
+                 (search-env (mod-id-concat curMod i) env)
+                 (error "Elixir: Undefined variable"))]
+    ;;[(defModC id exps) (loop-interp exps (add-module id env) id)]
+    ;;[(? defC? def) (add-to-env def env)]
+    ;;[(appC id args) (evaluate (interp id) (map (λ (arg) (interp arg env)) args))]
+    [else (error "Elixir: Failure to parse")]))
+
+
+;; ===== ENVIRONMENT & MODULE MANIPULATION =====
+  
+;; -- search-env --
 ;; takes in an environment and a symbol and returns the corresponding value
 (define (search-env [id : Symbol] [env : Environment]) : Value
   (match (symbol->string id)
@@ -119,7 +143,7 @@
                                                            (search-for-module (string->symbol (cast module String)) env))]))
 
 ;; -- search-for-module --
-;;searches an environment for a module with a given id
+;; searches an environment for a module with a given id
 (define (search-for-module [id : Symbol] [env : Environment]) : Module
   (cond
     [(empty? env) (error "Elixir: module not found")]
@@ -127,7 +151,7 @@
     [else (search-for-module id (rest env))]))
 
 ;; -- search-module --
-;;finds a value in a module given an id
+;; finds a value in a module given an id
 (define (search-module [id : Symbol] [mod : Module]) : Value
   (cond
     [(empty? (Module-b mod)) (error "Elixir: id not found in module")]
@@ -135,68 +159,109 @@
     [else (search-module id (Module 'DNM (rest (Module-b mod))))]))
 
 ;; -- add-module --
-;;adds a new module with a given symbol to an environment and returns the environment
+;; adds a new module with a given symbol to an environment and returns the environment
 (define (add-module [id : Symbol] [env : Environment]) : Environment
   (append env (list (Module id '()))))
 
+;; -- id-exists? --
+;; confirms if an id exists within the environment
+(define (id-exists? [i : Symbol] [env : Environment]) : Boolean
+  #t)
 
+;; ===== EVALUATE =====
+
+;; -- evaluate --
+;; evaluates a list of arguments within a function
+(define (evaluate [fun : Value] [args : (Listof Value)]) : Value
+  (match fun
+    [(primOp p) (p args)]
+    [else (error "Elixir: Failure to evaluate")]))
+    ;; Needs defC definition
+
+;; ===== HELPER =====
+
+;; -- mod-id-concat --
+;; concatenates two ids to facilitate environment searching
+(define (mod-id-concat [mName : Symbol] [idName : Symbol]) : Symbol
+  (cast (string->symbol
+         (string-append
+          (cast (symbol->string mName) String)
+          (string-append "." (cast (symbol->string idName) String)))) Symbol))
 
 ;; ========== TEST-CASES ==========
 
 ;; ===== TEST-CASES (BUILT-IN) =====
 
-;; -- BIPlus -- test cases
+;; -- BIPlus -- 
 (check-equal? (BIPlus (list 2 3)) 5)
 (check-exn exn:fail? (λ () (BIPlus (list 2 's))))
 (check-exn exn:fail? (λ () (BIPlus (list 2 3 4))))
 
-;; -- BISub -- test cases
+;; -- BISub --
 (check-equal? (BISub (list 2 2)) 0)
 (check-exn exn:fail? (λ () (BISub (list 2 's))))
 (check-exn exn:fail? (λ () (BISub (list 2 3 4))))
 
-;; -- BIMult -- test cases
+;; -- BIMult --
 (check-equal? (BIMult (list 2 3)) 6)
 (check-exn exn:fail? (λ () (BIMult (list 2 's))))
 (check-exn exn:fail? (λ () (BIMult (list 2 3 4))))
 
-;; -- BIDiv -- test cases
+;; -- BIDiv --
 (check-equal? (BIDiv (list 8 4)) 2)
 (check-exn exn:fail? (λ () (BIDiv (list 2 's))))
 (check-exn exn:fail? (λ () (BIDiv (list 2 3 4))))
 (check-exn exn:fail? (λ () (BIDiv (list 2 0))))
 
-;; -- BIConcat -- test cases
+;; -- BIConcat --
 (check-equal? (BIConcat (list "Hello" " World!")) "Hello World!")
 (check-exn exn:fail? (λ () (BIConcat (list "Hello" 's))))
 (check-exn exn:fail? (λ () (BIConcat (list "1" "2" "3"))))
 
-;; -- BIEqual? -- test cases
+;; -- BIEqual? --
 (check-equal? (BIEqual? (list "Hello" "Hello")) #t)
 (check-equal? (BIEqual? (list 10 10)) #t)
 (check-equal? (BIEqual? (list "Hello" 10)) #f)
 (check-exn exn:fail? (λ () (BIEqual? (list "Hello" 's 10))))
 
-;; -- BI!Equal? -- test cases
+;; -- BI!Equal? --
 (check-equal? (BI!Equal? (list "Hello" "Hello")) #f)
 (check-equal? (BI!Equal? (list 10 10)) #f)
 (check-equal? (BI!Equal? (list "Hello" 10)) #t)
 (check-exn exn:fail? (λ () (BI!Equal? (list "Hello" 's 10))))
 
-;; -- BIPuts -- test cases
+;; -- BIPuts --
 (check-not-exn (λ () (BIPuts '("Hello"))))
 (check-exn exn:fail? (λ () (BIPuts (list "Hello" 's 10))))
 
-;; -- test cases for search-env --
+;; ===== TEST-CASES (ENVIRONMENT & MODULE MANIPULATION) =====
+  
+;; -- search-env --
 (check-equal? (search-env 'all.d (list (Module 'all (list (Binding 'd false 3))))) 3)
 
-;; -- test cases for search-module
+;; -- search-module --
 (check-equal? (search-module 'hello (Module 'id (list (Binding 'no false 1) (Binding 'hello true 2)))) 2)
 (check-exn exn:fail? (lambda () (search-module 'hello (Module 'id '()))))
 
-;; -- test cases for search-for-module
+;; -- search-for-module --
 (check-equal? (Module-b (search-for-module 'hello (list (Module 'hi (list (Binding 'l false 1)))(Module 'hello '())))) '())
 (check-exn exn:fail? (lambda () (search-for-module 'hello '())))
 
-;; -- add-module -- test cases
-(check-equal? (Module-id (first (add-module 'Math '()))) 'Math)
+;; -- add-module --
+(check-equal? (add-module 'new (list)) (list (Module 'new (list))))
+
+;; -- id-exists --
+(check-equal? (id-exists? 's top-env) #t) ;;FAKE
+;;(check-equal? (id-exists? 's top-env) #f) ;;REAL
+;;(check-equal? (id-exists? '+ top-evn) #t) ;;REAL
+
+;; ===== TEST-CASES (EVALUATE) =====
+
+;; -- evaluate --
+(check-equal? (evaluate (primOp BIMult) (list 10 5)) 50)
+(check-exn exn:fail? (λ () (evaluate 10 (list 10))))
+
+;; ===== TEST-CASES (HELPER) =====
+
+;; -- mod-id-concat --
+(check-equal? (mod-id-concat 'top-mod 'fun) 'top-mod.fun)
