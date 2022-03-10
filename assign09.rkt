@@ -118,7 +118,6 @@
                                                            (string->symbol (cast name String))
                                                            (search-for-module (string->symbol (cast module String)) env))]))
 
-
 ;; -- search-for-module --
 ;;searches an environment for a module with a given id
 (define (search-for-module [id : Symbol] [env : Environment]) : Module
@@ -134,6 +133,13 @@
     [(empty? (Module-b mod)) (error "Elixir: id not found in module")]
     [(equal? id (Binding-id (first (Module-b mod)))) (Binding-v (first (Module-b mod)))]
     [else (search-module id (Module 'DNM (rest (Module-b mod))))]))
+
+;; -- add-module --
+;;adds a new module with a given symbol to an environment and returns the environment
+(define (add-module [id : Symbol] [env : Environment]) : Environment
+  (append env (list (Module id '()))))
+
+
 
 ;; ========== TEST-CASES ==========
 
@@ -191,3 +197,6 @@
 ;; -- test cases for search-for-module
 (check-equal? (Module-b (search-for-module 'hello (list (Module 'hi (list (Binding 'l false 1)))(Module 'hello '())))) '())
 (check-exn exn:fail? (lambda () (search-for-module 'hello '())))
+
+;; -- add-module -- test cases
+(check-equal? (Module-id (first (add-module 'Math '()))) 'Math)
