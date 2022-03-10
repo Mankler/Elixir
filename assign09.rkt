@@ -108,6 +108,32 @@
 ;; Top environment containing in-built modules
 (define top-env (list PrimOp-mod IO-mod))
 
+;; ===== HELPER FUNCTIONS =====
+
+;; -- serach-env --
+;; takes in an environment and a symbol and returns the corresponding value
+(define (search-env [id : Symbol] [env : Environment]) : Value
+  (match (symbol->string id)
+    [(regexp #rx"([a-z]+).([a-z]+)" (list _ module name)) (search-module
+                                                           (string->symbol (cast name String))
+                                                           (search-for-module (string->symbol (cast module String)) env))]))
+
+
+;; -- search-for-module --
+;;searches an environment for a module with a given id
+(define (search-for-module [id : Symbol] [env : Environment]) : Module
+  (cond
+    [(empty? env) (error "Elixir: module not found")]
+    [(equal? id (Module-id (first env))) (first env)]
+    [else (search-for-module id (rest env))]))
+
+;; -- search-module --
+;;finds a value in a module given an id
+(define (search-module [id : Symbol] [mod : Module]) : Value
+  (cond
+    [(empty? (Module-b mod)) (error "Elixir: id not found in module")]
+    [(equal? id (Binding-id (first (Module-b mod)))) (Binding-v (first (Module-b mod)))]
+    [else (search-module id (Module 'DNM (rest (Module-b mod))))]))
 
 ;; ========== TEST-CASES ==========
 
@@ -154,3 +180,14 @@
 ;; -- BIPuts -- test cases
 (check-not-exn (λ () (BIPuts '("Hello"))))
 (check-exn exn:fail? (λ () (BIPuts (list "Hello" 's 10))))
+
+;; -- test cases for search-env --
+(check-equal? (search-env 'all.d (list (Module 'all (list (Binding 'd false 3))))) 3)
+
+;; -- test cases for search-module
+(check-equal? (search-module 'hello (Module 'id (list (Binding 'no false 1) (Binding 'hello true 2)))) 2)
+(check-exn exn:fail? (lambda () (search-module 'hello (Module 'id '()))))
+
+;; -- test cases for search-for-module
+(check-equal? (Module-b (search-for-module 'hello (list (Module 'hi (list (Binding 'l false 1)))(Module 'hello '())))) '())
+(check-exn exn:fail? (lambda () (search-for-module 'hello '())))
