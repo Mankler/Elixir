@@ -90,12 +90,12 @@
 ;; ===== TOP-ENV =====
 
 ;; -- IO-mod --
-(define IO-mod (Module 'IO [list
+(define IO-mod (Module 'io [list
                             (Binding 'puts #f (primOp BIPuts))]))
 
 ;; -- PrimOp-mod --
 ;; Module containing primOps
-(define PrimOp-mod (Module 'PrimOp [list
+(define PrimOp-mod (Module 'primop [list
                                     (Binding '+ #f (primOp BIPlus))
                                     (Binding '- #f (primOp BISub))
                                     (Binding '* #f (primOp BIMult))
@@ -120,6 +120,7 @@
   (map (λ (exp) (interp (cast exp ExprC) env curMod)) eS))
 
 ;; -- interp --
+;; APPC DOESNT WORK BECAUSE ID DOESNT WORK; AFTER THAT, THE "EVALUATE" FUNCTION MUST BE COMPLETED
 ;; returns a value after interpreting an expression in an environment
 (define (interp [e : ExprC] [env : Environment] [curMod : Symbol]) : Value
   (match e
@@ -143,7 +144,11 @@
   (match (symbol->string id)
     [(regexp #rx"([a-z]+).([a-z]+)" (list _ module name)) (search-module
                                                            (string->symbol (cast name String))
-                                                           (search-for-module (string->symbol (cast module String)) env))]))
+                                                           (search-for-module (string->symbol (cast module String)) env))])) 
+
+;;(define (test-split [id : Symbol]) : Value
+  ;;(match (symbol->string id)
+    ;;[(regexp #rx"([a-z]+).([a-z]+)" (list _ module name)) (list module name)]))
 
 ;; -- search-for-module --
 ;; searches an environment for a module with a given id
@@ -253,7 +258,7 @@
 (check-equal? (interp (strC "HI") top-env 'top-mod) "HI")
 (check-equal? (interp (boolC #t) top-env 'top-mod) #t)
 (check-equal? (interp (defModC 'test-mod (list (numC 10) (numC 15))) top-env 'top-mod) (list 10 15))
-;;(check-equal? (interp (idC '+) top-env 'PrimOp) (primOp BIPlus)) <-doesn't work; something wrong with search-for-module
+;;(check-equal? (interp (idC '+) top-env 'primop) (primOp BIPlus)) ;;<-doesn't work; something wrong with search-for-module
 (check-exn exn:fail? (λ () (interp (idC 's) top-env 'top-mod)))
 
 ;; ===== TEST-CASES (ENVIRONMENT & MODULE MANIPULATION) =====
