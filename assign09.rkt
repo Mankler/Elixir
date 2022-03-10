@@ -6,15 +6,15 @@
 ;; ===== DEFINITIONS =====
 
 ;; -- ExprC --
-(define-type ExprC (U errorC numC idC strC boolC))
+(define-type ExprC (U errorC numC idC strC boolC appC defC defModC))
 (struct errorC ([id : Real]) #:transparent) ;; For inducing errors
 (struct numC ([n : Real]) #:transparent) ;; Number
 (struct idC ([i : Symbol]) #:transparent) ;; ID
 (struct strC ([s : String]) #:transparent) ;; String
 (struct boolC ([b : Boolean]) #:transparent) ;; Boolean
-(struct appC ([id : Symbol] [args : (Listof ExprC)])) ;; Function call
-(struct defC ([id : Symbol] [args : (Listof Symbol)] [body : (Listof ExprC)])) ;; Function definition
-(struct defModC ([id : Symbol] [exps : (Listof ExprC)])) ;; Define Module
+(struct appC ([id : Symbol] [args : (Listof ExprC)]) #:transparent) ;; Function call
+(struct defC ([id : Symbol] [args : (Listof Symbol)] [body : (Listof ExprC)]) #:transparent) ;; Function definition
+(struct defModC ([id : Symbol] [exps : (Listof ExprC)]) #:transparent) ;; Define Module
 
 ;; -- Value --
 (define-type Value (U errV Number Real Boolean Symbol String defC primOp Void (Listof Value)))
@@ -106,15 +106,18 @@
 
 ;; -- top-env --
 ;; Top environment containing in-built modules
-(define top-env (list PrimOp-mod IO-mod))
+(define top-env (list
+                 (Module 'top-mod (list))
+                 PrimOp-mod
+                 IO-mod))
 
 
 ;; ===== INTERP =====
 
 ;; -- loop-interp --
 ;; loops through interp over a given list of exprC
-;;(define (loop-interp [eS : (Listof ExprC)] [env : Environment] [curMod : Symbol]) : (Listof Value
-  ;;)
+(define (loop-interp [eS : (Listof ExprC)] [env : Environment] [curMod : Symbol]) : (Listof Value)
+  (map (λ (exp) (interp (cast exp ExprC) env curMod)) eS))
 
 ;; -- interp --
 ;; returns a value after interpreting an expression in an environment
@@ -126,9 +129,9 @@
     [(idC i) (if (id-exists? (mod-id-concat curMod i) env)
                  (search-env (mod-id-concat curMod i) env)
                  (error "Elixir: Undefined variable"))]
-    ;;[(defModC id exps) (loop-interp exps (add-module id env) id)]
-    ;;[(? defC? def) (add-to-env def env)]
-    ;;[(appC id args) (evaluate (interp id) (map (λ (arg) (interp arg env)) args))]
+    [(defModC id exps) (loop-interp exps (add-module id env) id)]
+    ;;[(? defC? def) (add-to-module def env curMod)] ;; <- NOT IMPLEMENTED
+    [(appC id args) (evaluate (interp (idC id) env curMod) (map (λ (arg) (interp (cast arg ExprC) env curMod)) args))]
     [else (error "Elixir: Failure to parse")]))
 
 
@@ -163,8 +166,14 @@
 (define (add-module [id : Symbol] [env : Environment]) : Environment
   (append env (list (Module id '()))))
 
+;; -- add-to-module --
+;; adds a new value to a module (NEEDS TO BE IMPLEMENTED)
+;;(define (add-to-module [value : Value] [env : Environment] [mod : Symbol]) : Void
+  ;;)
+
 ;; -- id-exists? --
 ;; confirms if an id exists within the environment
+;; NOT COMPLETE (DON'T PASS NONEXISTENT IDS)
 (define (id-exists? [i : Symbol] [env : Environment]) : Boolean
   #t)
 
@@ -175,8 +184,8 @@
 (define (evaluate [fun : Value] [args : (Listof Value)]) : Value
   (match fun
     [(primOp p) (p args)]
+    ;;[(defC if args body)] ;;<- not implemented; I'm thinking substitution?
     [else (error "Elixir: Failure to evaluate")]))
-    ;; Needs defC definition
 
 ;; ===== HELPER =====
 
@@ -233,6 +242,19 @@
 ;; -- BIPuts --
 (check-not-exn (λ () (BIPuts '("Hello"))))
 (check-exn exn:fail? (λ () (BIPuts (list "Hello" 's 10))))
+
+;; ===== TEST-CASES (INTERP) =====
+
+;; -- loop-interp --
+(check-equal? (loop-interp (list (numC 10) (numC 15)) top-env 'top-mod) (list 10 15))
+
+;; -- interp --
+(check-equal? (interp (numC 10) top-env 'top-mod) 10)
+(check-equal? (interp (strC "HI") top-env 'top-mod) "HI")
+(check-equal? (interp (boolC #t) top-env 'top-mod) #t)
+(check-equal? (interp (defModC 'test-mod (list (numC 10) (numC 15))) top-env 'top-mod) (list 10 15))
+;;(check-equal? (interp (idC '+) top-env 'PrimOp) (primOp BIPlus)) <-doesn't work; something wrong with search-for-module
+(check-exn exn:fail? (λ () (interp (idC 's) top-env 'top-mod)))
 
 ;; ===== TEST-CASES (ENVIRONMENT & MODULE MANIPULATION) =====
   
